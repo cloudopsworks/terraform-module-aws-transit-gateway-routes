@@ -25,6 +25,23 @@ locals {
   ]
 }
 
+resource "aws_ec2_transit_gateway_route_table_association" "this" {
+  count = var.create_association ? 1 : 0
+
+  # Create association if it was not set already by aws_ec2_transit_gateway_vpc_attachment resource
+  transit_gateway_attachment_id  = var.transit_gateway_attachment_id
+  transit_gateway_route_table_id = var.transit_gateway_route_table_id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "this" {
+  count = var.create_propagation ? 1 : 0
+
+  # Create association if it was not set already by aws_ec2_transit_gateway_vpc_attachment resource
+  transit_gateway_attachment_id  = var.transit_gateway_attachment_id
+  transit_gateway_route_table_id = var.transit_gateway_route_table_id
+}
+
+
 # Network Related Route to TGW
 resource "aws_route" "this" {
   for_each = { for x in local.vpc_route_table_destination_cidr : x.rtb_id => {
@@ -38,4 +55,5 @@ resource "aws_route" "this" {
   destination_ipv6_cidr_block = try(each.value.ipv6_support, false) ? each.value["cidr"] : null
   transit_gateway_id          = var.transit_gateway_id
 }
+
 
