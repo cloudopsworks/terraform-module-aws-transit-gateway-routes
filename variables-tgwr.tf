@@ -47,13 +47,13 @@ variable "transit_gateway_routes" {
 }
 
 variable "create_association" {
-    description = "Create Transit Gateway Route Table Association."
-    type        = bool
-    default     = false
+  description = "Create Transit Gateway Route Table Association."
+  type        = bool
+  default     = false
 }
 
 variable "create_propagation" {
-    description = "Create Transit Gateway Route Table Propagation."
-    type        = bool
-    default     = false
+  description = "Create Transit Gateway Route Table Propagation."
+  type        = bool
+  default     = false
 }
