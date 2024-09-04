@@ -31,6 +31,7 @@ resource "aws_ec2_transit_gateway_route_table_association" "this" {
   # Create association if it was not set already by aws_ec2_transit_gateway_vpc_attachment resource
   transit_gateway_attachment_id  = var.transit_gateway_attachment_id
   transit_gateway_route_table_id = var.transit_gateway_route_table_id
+  replace_existing_association   = true
 }
 
 resource "aws_ec2_transit_gateway_route_table_propagation" "this" {
