@@ -1,4 +1,4 @@
-name: Terraform Transit Gateway Module
+name: Terraform Transit Gateway Routes Configuration Module
 #logo: logo/logo.jpg
 
 license: "APACHE2"
@@ -8,10 +8,15 @@ copyrights:
     url: "https://cloudops.works"
     year: "2024"
 
-github_repo: cloudopsworks/terraform-module-aws-vpc-setup
+github_repo: cloudopsworks/terraform-module-aws-transit-gateway-routes
 
 description: |-
-  VPC Module for setting up transit gateway with ResourceAccessMananger support.
+  This Terraform module configures AWS Transit Gateway routes, associations, and propagations. 
+  It allows for the creation of transit gateway routes based on provided CIDR blocks, and supports both IPv4 
+  and IPv6 configurations. The module also handles the association and propagation of transit gateway route tables, 
+  ensuring that the necessary routes are established for network traffic to flow through the transit gateway. 
+  Additionally, it includes the ability to create network-related routes to the transit gateway within specified 
+  VPC route tables. This module is designed to be flexible and supports various configurations through input variables.
 
 # Introduction to the project
 #introduction: |-
