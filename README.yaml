@@ -19,17 +19,104 @@ description: |-
   VPC route tables. This module is designed to be flexible and supports various configurations through input variables.
 
 # Introduction to the project
-#introduction: |-
-#  This is an introduction.
+introduction: |-
+  The AWS Transit Gateway Routes Configuration Module simplifies the management of AWS Transit Gateway networking components. 
+  It handles three main aspects:
+  1. Transit Gateway Route Configuration - Creates routes in TGW route tables
+  2. Route Table Associations - Associates TGW attachments with route tables
+  3. Route Propagation - Manages route propagation between TGW components
+  4. VPC Route Table Management - Creates routes in VPC route tables pointing to TGW
 
 # How to use this project
-#usage: |-
+usage: |-
+  To use this module, include it in your Terraform configuration with the required variables:
+
+  ```hcl
+  module "tgw_routes" {
+    source = "cloudopsworks/terraform-module-aws-transit-gateway-routes"
+
+    transit_gateway_id             = "tgw-12345"
+    transit_gateway_route_table_id = "tgw-rtb-12345"
+    transit_gateway_attachment_id  = "tgw-attach-12345"
+
+    # Route configuration
+    transit_gateway_routes = [
+      {
+        destination_cidr_block = "10.0.0.0/16"
+      },
+      {
+        destination_cidr_block = "172.16.0.0/12"
+        blackhole             = true
+      }
+    ]
+
+    # VPC route table configuration
+    vpc_route_table_ids    = ["rtb-12345", "rtb-67890"]
+    tgw_destination_cidr   = "10.0.0.0/8"
+
+    # Optional features
+    create_association     = true
+    create_propagation     = true
+    ipv6_support          = false
+  }
+  ```
 
 # Example usage
-#examples: |-
+examples: |-
+  ### Terraform Implementation
+  ```hcl
+  module "tgw_routes" {
+    source = "cloudopsworks/terraform-module-aws-transit-gateway-routes"
+
+    transit_gateway_id             = aws_ec2_transit_gateway.main.id
+    transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main.id
+    transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.main.id
+
+    transit_gateway_routes = [
+      {
+        destination_cidr_block = "10.0.0.0/16"
+      }
+    ]
+  }
+  ```
+
+  ### Terragrunt Implementation
+  ```hcl
+  # terragrunt.hcl
+  include {
+    path = find_in_parent_folders()
+  }
+
+  terraform {
+    source = "cloudopsworks/terraform-module-aws-transit-gateway-routes//."
+  }
+
+  inputs = {
+    transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+    transit_gateway_route_table_id = dependency.tgw_route_table.outputs.id
+    transit_gateway_attachment_id  = dependency.tgw_attachment.outputs.id
+
+    transit_gateway_routes = [
+      {
+        destination_cidr_block = "10.0.0.0/16"
+      }
+    ]
+  }
+  ```
 
 # How to get started quickly
-#quickstart: |-
+quickstart: |-
+  1. Create a new Terraform/Terragrunt configuration file
+  2. Add the module source and version
+  3. Configure required variables:
+     - transit_gateway_id
+     - transit_gateway_route_table_id
+     - transit_gateway_attachment_id
+  4. Define your route configurations in transit_gateway_routes
+  5. Optionally configure VPC route tables and additional features
+  6. Initialize Terraform/Terragrunt: `terraform init` or `terragrunt init`
+  7. Review the execution plan: `terraform plan` or `terragrunt plan`
+  8. Apply the configuration: `terraform apply` or `terragrunt apply`
 
 include:
   - "docs/targets.md"

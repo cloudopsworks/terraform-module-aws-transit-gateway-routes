@@ -1,7 +1,10 @@
 ##
-# (c) 2024 - Cloud Ops Works LLC - https://cloudops.works/
-#            On GitHub: https://github.com/cloudopsworks
-#            Distributed Under Apache v2.0 License
+# (c) 2021-2025
+#     Cloud Ops Works LLC - https://cloudops.works/
+#     Find us on:
+#       GitHub: https://github.com/cloudopsworks
+#       WebSite: https://cloudops.works
+#     Distributed Under Apache v2.0 License
 #
 
 variable "vpc_route_table_ids" {
@@ -40,6 +43,13 @@ variable "transit_gateway_attachment_id" {
   default     = ""
 }
 
+## Transit Gateway Routes
+# This variable is used to create multiple Transit Gateway routes. Yaml Reference below:
+#transit_gateway_routes:
+#   - destination_cidr_block: "xxx.xx.xx.xx/xx"
+#     transit_gateway_route_table_id: "tgw-rtb-xxxxxxxx"   # (optional) if not provided, will use 'transit_gateway_route_table_id' variable.
+#     transit_gateway_attachment_id: "tgw-attach-xxxxxxxx" # (optional) if not provided, will use 'transit_gateway_attachment_id' variables.
+#     blackhole: false # (optional) if set to true, the route will be a blackhole route.
 variable "transit_gateway_routes" {
   description = "List of maps of Transit Gateway routes to create."
   type        = any
