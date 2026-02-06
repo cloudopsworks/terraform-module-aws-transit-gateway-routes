@@ -6,7 +6,7 @@ license: "APACHE2"
 copyrights:
   - name: "Cloud Ops Works LLC"
     url: "https://cloudops.works"
-    year: "2024"
+    year: "2021"
 
 github_repo: cloudopsworks/terraform-module-aws-transit-gateway-routes
 
@@ -61,6 +61,7 @@ usage: |-
     ]
     create_association             = false             # (Optional) Create Transit Gateway Route Table Association. Default: false
     create_propagation             = false             # (Optional) Create Transit Gateway Route Table Propagation. Default: false
+    replace_existing               = false             # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
   }
   ```
 
@@ -90,6 +91,7 @@ usage: |-
       transit_gateway_attachment_id: "tgw-attach-12345678"   # (Optional) EC2 Transit Gateway Attachment identifier. Defaults to var.transit_gateway_attachment_id
   create_association: false   # (Optional) Create Transit Gateway Route Table Association. Default: false
   create_propagation: false   # (Optional) Create Transit Gateway Route Table Propagation. Default: false
+  replace_existing: false   # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
   ```
 
 # Example usage
