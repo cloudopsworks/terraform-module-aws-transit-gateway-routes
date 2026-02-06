@@ -7,13 +7,18 @@
 #     Distributed Under Apache v2.0 License
 #
 
+
 terraform {
-  required_version = ">= 1.3"
+  required_version = ">= 1.7"
   # Complete with required providers for the module
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "6.4"
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 7.0"
+    }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 7.0"
     }
   }
 }
