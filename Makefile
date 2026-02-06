@@ -6,6 +6,7 @@
 #       WebSite: https://cloudops.works
 #     Distributed Under Apache v2.0 License
 #
+
 SHELL := /bin/bash
 TRONADOR_AUTO_INIT := true
 GITVERSION ?= $(INSTALL_PATH)/gitversion
