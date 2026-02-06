@@ -74,6 +74,7 @@ variable "create_propagation" {
   default     = false
 }
 
+# replace_existing: false   # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
 variable "replace_existing" {
   description = "Replace existing Transit Gateway Route Table Association or Propagation."
   type        = bool
