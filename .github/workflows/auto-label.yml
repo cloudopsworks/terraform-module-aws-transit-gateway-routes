@@ -6,7 +6,6 @@
 #       WebSite: https://cloudops.works
 #     Distributed Under Apache v2.0 License
 #
-
 name: auto-label
 on: 
   - pull_request
