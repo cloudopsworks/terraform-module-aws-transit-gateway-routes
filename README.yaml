@@ -1,5 +1,13 @@
-name: Terraform Transit Gateway Routes Configuration Module
+name: Terraform AWS Transit Gateway Routes Module
 #logo: logo/logo.jpg
+
+badges:
+  - name: Latest Release
+    image: https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-transit-gateway-routes.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/releases/latest
+  - name: Last Updated
+    image: https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-transit-gateway-routes.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/commits
 
 license: "APACHE2"
 
@@ -11,160 +19,233 @@ copyrights:
 github_repo: cloudopsworks/terraform-module-aws-transit-gateway-routes
 
 description: |-
-  This Terraform module configures AWS Transit Gateway routes, associations, and propagations. 
-  It allows for the creation of transit gateway routes based on provided CIDR blocks, and supports both IPv4 
-  and IPv6 configurations. The module also handles the association and propagation of transit gateway route tables, 
-  ensuring that the necessary routes are established for network traffic to flow through the transit gateway. 
-  Additionally, it includes the ability to create network-related routes to the transit gateway within specified 
-  VPC route tables. This module is designed to be flexible and supports various configurations through input variables.
+  Terraform module for managing AWS Transit Gateway routing primitives. It creates static Transit Gateway routes,
+  optional route table associations and propagations, and optional VPC route table entries that target a Transit
+  Gateway. The module supports IPv4 and IPv6 destination CIDRs and can be wired directly or through Terragrunt
+  scaffolded dependencies for VPC, Transit Gateway, and Transit Gateway attachment modules.
 
 # Introduction to the project
 introduction: |-
-  The AWS Transit Gateway Routes module is designed to simplify the management of routing within an AWS Transit Gateway environment. 
-  It provides a structured way to define static routes, handle route table associations and propagations, and automate the 
-  creation of routes in VPC route tables that point to the Transit Gateway. This ensures consistent and manageable network 
-  connectivity across multiple VPCs and accounts.
+  The AWS Transit Gateway Routes module centralizes the route-management tasks commonly required after provisioning
+  a Transit Gateway and VPC attachments. Use it to add static TGW routes, associate an attachment to a TGW route
+  table, enable route propagation, and publish routes into selected VPC route tables. This keeps hub-and-spoke
+  routing deployments repeatable while allowing each deployment to override route tables, attachments, and CIDR
+  destinations where needed.
 
 # How to use this project
 usage: |-
-  To use this module in a Terragrunt configuration, you can include it in your `terragrunt.hcl` file. 
-  The module requires several inputs to define the Transit Gateway and the routes to be created.
+  Bootstrap deployments with Terragrunt's scaffold command. The scaffold reads `.boilerplate/boilerplate.yml` from
+  this module and writes `terragrunt.hcl`, `inputs.yaml`, and `local-tags.json` into the current directory.
+
+  ```sh
+  # 1. Create and enter the target deployment directory
+  mkdir -p prod/us-east-1/network/transit-gateway-routes
+  cd prod/us-east-1/network/transit-gateway-routes
+
+  # 2. Scaffold the module (do NOT use --working-dir)
+  terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
+
+  # 3. Edit inputs.yaml with deployment-specific values
+  #    (all keys and comments are pre-populated from .boilerplate/inputs.yaml)
+  vi inputs.yaml
+
+  # 4. Apply
+  terragrunt apply
+  ```
+
+  The generated `inputs.yaml` contains the module-specific settings operators edit per deployment:
+
+  ```yaml
+  # Module configuration
+
+  vpc_route_table_ids: [] # (Optional) List of VPC route table IDs where routes to the Transit Gateway will be created. Default: []
+  tgw_destination_cidr: "" # (Optional) Destination CIDR block for VPC route table routes. Use IPv4 CIDR when ipv6_support is false, or IPv6 CIDR when true. Default: ""
+  ipv6_support: false # (Optional) Create VPC route table routes with destination_ipv6_cidr_block instead of destination_cidr_block. Default: false
+  transit_gateway_id: "tgw-1234567890abcdef0" # (Required) EC2 Transit Gateway ID used by VPC route table routes; usually sourced from the TGW dependency when enabled.
+  transit_gateway_route_table_id: "" # (Optional) EC2 Transit Gateway route table ID used for static routes, association, and propagation when not supplied per route. Default: ""
+  transit_gateway_attachment_id: "" # (Optional) EC2 Transit Gateway attachment ID used for static routes, association, and propagation when not supplied per route. Default: ""
+  transit_gateway_routes: [] # (Optional) Static Transit Gateway routes to create. Default: []
+  # - destination_cidr_block: "10.0.0.0/8" # (Required) Destination IPv4 or IPv6 CIDR block for the static Transit Gateway route.
+  #   blackhole: false # (Optional) Create a blackhole route instead of targeting an attachment. Default: false
+  #   transit_gateway_route_table_id: "tgw-rtb-1234567890abcdef0" # (Optional) Route table ID for this route. Defaults to transit_gateway_route_table_id.
+  #   transit_gateway_attachment_id: "tgw-attach-1234567890abcdef0" # (Optional) Attachment ID for this route when blackhole is false. Defaults to transit_gateway_attachment_id.
+  create_association: false # (Optional) Create a Transit Gateway route table association for transit_gateway_attachment_id. Default: false
+  create_propagation: false # (Optional) Create a Transit Gateway route table propagation for transit_gateway_attachment_id. Default: false
+  replace_existing: false # (Optional) Replace an existing Transit Gateway route table association when create_association is true. Default: false
+  ```
+
+  With the default scaffold options, the generated `terragrunt.hcl` wires VPC, Transit Gateway, and attachment
+  dependencies into module inputs while keeping deployment-specific overrides in `inputs.yaml`:
 
   ```hcl
+  locals {
+    local_vars  = yamldecode(file("./inputs.yaml"))
+    spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+    region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+    env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+    global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
+
+    local_tags  = jsondecode(file("./local-tags.json"))
+    spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+    region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+    env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+    global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+    tags = merge(
+      local.global_tags,
+      local.env_tags,
+      local.region_tags,
+      local.spoke_tags,
+      local.local_tags
+    )
+  }
+
+  include "root" {
+    path = find_in_parent_folders("terragrunt.hcl")
+  }
+
+  dependency "vpc" {
+    config_path = "../vpc"
+    mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+    mock_outputs = {
+      vpc_name = "sample-vpc"
+      vpc_id   = "vpc-12345678901234"
+      private_route_table_ids = [
+        "rtb-1234567890",
+        "rtb-1234567891",
+        "rtb-1234567892",
+      ]
+      public_route_table_ids = [
+        "rtb-1234567893",
+        "rtb-1234567894",
+      ]
+      intra_route_table_ids = [
+        "rtb-1234567895",
+        "rtb-1234567896",
+        "rtb-1234567897",
+      ]
+    }
+  }
+
+  dependency "tgw" {
+    config_path = "../tgw"
+    mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+    mock_outputs = {
+      transit_gateway_arn            = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234"
+      transit_gateway_id             = "tgw-12345678901234"
+      transit_gateway_route_table_id = "tgw-rtb-12345678901234"
+    }
+  }
+
+  dependency "att" {
+    config_path = "../tgw-att"
+    mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+    mock_outputs = {
+      transit_gateway_attachments = [
+        {
+          id                 = "tgw-attach-123456789012345"
+          transit_gateway_id = "tgw-1234567890123456"
+          vpc_id             = "vpc-123456789012345"
+        }
+      ]
+    }
+  }
+
   terraform {
-    source = "github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes.git?ref=v1.0.0"
+    source = "github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes"
   }
 
   inputs = {
-    is_hub                         = false             # (Optional) Establish this is a HUB or spoke configuration. Default: false
-    spoke_def                      = "001"             # (Optional) Spoke definition. Default: "001"
-    org                            = {                 # (Required) Organization information.
-      organization_name = "myorg"                      # (Required) Organization name.
-      organization_unit = "myunit"                     # (Required) Organization unit.
-      environment_type  = "dev"                        # (Required) Environment type (e.g., dev, prod).
-      environment_name  = "development"                # (Required) Environment name.
-    }
-    extra_tags                     = {}                # (Optional) Extra tags to add to resources. Default: {}
-    vpc_route_table_ids            = []                # (Optional) List of VPC Route Table identifiers to create routes to the Transit Gateway. Default: []
-    tgw_destination_cidr           = ""                # (Optional) Destination CIDR block for the Transit Gateway route. Default: ""
-    ipv6_support                   = false             # (Optional) Enable IPv6 support for the Transit Gateway route. Default: false
-    transit_gateway_id             = "tgw-12345678"    # (Required) EC2 Transit Gateway identifier.
-    transit_gateway_route_table_id = ""                # (Optional) EC2 Transit Gateway Route Table identifier. Default: ""
-    transit_gateway_attachment_id  = ""                # (Optional) EC2 Transit Gateway Attachment identifier. Default: ""
-    transit_gateway_routes         = [                 # (Optional) List of maps of Transit Gateway routes to create. Default: []
-      {
-        destination_cidr_block         = "10.0.0.0/8"    # (Required) Destination CIDR block for the Transit Gateway route.
-        blackhole                      = false           # (Optional) Whether to create a blackhole route. Default: false
-        transit_gateway_route_table_id = "tgw-rtb-12345678" # (Optional) EC2 Transit Gateway Route Table identifier.
-        transit_gateway_attachment_id  = "tgw-attach-12345678" # (Optional) EC2 Transit Gateway Attachment identifier.
-      }
-    ]
-    create_association             = false             # (Optional) Create Transit Gateway Route Table Association. Default: false
-    create_propagation             = false             # (Optional) Create Transit Gateway Route Table Propagation. Default: false
-    replace_existing               = false             # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
+    is_hub    = false
+    org       = local.env_vars.org
+    spoke_def = local.spoke_vars.spoke
+
+    transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+    vpc_route_table_ids            = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids)
+    tgw_destination_cidr           = try(local.local_vars.tgw_destination_cidr, "")
+    ipv6_support                   = try(local.local_vars.ipv6_support, false)
+    transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+    transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
+    transit_gateway_routes         = try(local.local_vars.transit_gateway_routes, [])
+    create_association             = try(local.local_vars.create_association, false)
+    create_propagation             = try(local.local_vars.create_propagation, false)
+    replace_existing               = try(local.local_vars.replace_existing, false)
+
+    extra_tags = local.tags
   }
-  ```
-
-  ### Full YAML Configuration Documentation
-  Below is the complete documentation of the configuration variables in YAML format:
-
-  ```yaml
-  is_hub: false   # (Optional) Establish this is a HUB or spoke configuration. Default: false
-  spoke_def: "001"   # (Optional) Spoke definition. Default: "001"
-  org:   # (Required) Organization information.
-    organization_name: "myorg"   # (Required) Organization name.
-    organization_unit: "myunit"   # (Required) Organization unit.
-    environment_type: "dev"      # (Required) Environment type (e.g., dev, prod).
-    environment_name: "development" # (Required) Environment name.
-  extra_tags: {}   # (Optional) Extra tags to add to resources. Default: {}
-
-  vpc_route_table_ids: []   # (Optional) List of VPC Route Table identifiers to create routes to the Transit Gateway. Default: []
-  tgw_destination_cidr: ""   # (Optional) Destination CIDR block for the Transit Gateway route. Default: ""
-  ipv6_support: false   # (Optional) Enable IPv6 support for the Transit Gateway route. Default: false
-  transit_gateway_id: "tgw-12345678"   # (Required) EC2 Transit Gateway identifier.
-  transit_gateway_route_table_id: ""   # (Optional) EC2 Transit Gateway Route Table identifier, defaults to blank, required if not provided through 'transit_gateway_routes'. Default: ""
-  transit_gateway_attachment_id: ""   # (Optional) EC2 Transit Gateway Attachment identifier, defaults to blank., required if not provided through 'transit_gateway_routes'. Default: ""
-  transit_gateway_routes: []   # (Optional) List of maps of Transit Gateway routes to create. Default: []
-    - destination_cidr_block: "10.0.0.0/8"   # (Required) Destination CIDR block for the Transit Gateway route.
-      blackhole: false   # (Optional) Whether to create a blackhole route. Default: false
-      transit_gateway_route_table_id: "tgw-rtb-12345678"   # (Optional) EC2 Transit Gateway Route Table identifier. Defaults to var.transit_gateway_route_table_id
-      transit_gateway_attachment_id: "tgw-attach-12345678"   # (Optional) EC2 Transit Gateway Attachment identifier. Defaults to var.transit_gateway_attachment_id
-  create_association: false   # (Optional) Create Transit Gateway Route Table Association. Default: false
-  create_propagation: false   # (Optional) Create Transit Gateway Route Table Propagation. Default: false
-  replace_existing: false   # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
   ```
 
 # Example usage
 examples: |-
   ### Basic Association and Propagation
-  This example demonstrates how to associate a TGW attachment with a route table and enable propagation.
+  Associate a Transit Gateway attachment with a route table and enable propagation from that same attachment.
 
   ```hcl
   inputs = {
-    transit_gateway_id             = "tgw-0123456789abcdef0"
-    transit_gateway_route_table_id = "tgw-rtb-0123456789abcdef0"
-    transit_gateway_attachment_id  = "tgw-attach-0123456789abcdef0"
+    transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+    transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+    transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
     create_association             = true
     create_propagation             = true
-    org = {
-      organization_name = "example"
-      organization_unit = "infrastructure"
-      environment_type  = "prod"
-      environment_name  = "production"
-    }
   }
   ```
 
   ### Static Routes in Transit Gateway
-  This example shows how to create multiple static routes in the Transit Gateway.
+  Create explicit static routes in a Transit Gateway route table. Per-route route table and attachment values override
+  the top-level defaults when supplied.
 
   ```hcl
   inputs = {
-    transit_gateway_id = "tgw-0123456789abcdef0"
+    transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+    transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+    transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
     transit_gateway_routes = [
       {
         destination_cidr_block = "10.1.0.0/16"
-        transit_gateway_attachment_id = "tgw-attach-11111111"
       },
       {
         destination_cidr_block = "10.2.0.0/16"
-        transit_gateway_attachment_id = "tgw-attach-22222222"
+        transit_gateway_attachment_id = "tgw-attach-22222222222222222"
+      },
+      {
+        destination_cidr_block = "10.99.0.0/16"
+        blackhole              = true
       }
     ]
-    org = {
-      organization_name = "example"
-      organization_unit = "infrastructure"
-      environment_type  = "prod"
-      environment_name  = "production"
-    }
   }
   ```
 
   ### VPC Route Table Updates
-  This example shows how to add routes to VPC route tables that point to the Transit Gateway.
+  Add IPv4 routes to selected VPC route tables that point to the Transit Gateway.
 
   ```hcl
   inputs = {
-    transit_gateway_id   = "tgw-0123456789abcdef0"
+    transit_gateway_id   = dependency.tgw.outputs.transit_gateway_id
+    vpc_route_table_ids  = dependency.vpc.outputs.private_route_table_ids
     tgw_destination_cidr = "10.0.0.0/8"
-    vpc_route_table_ids  = ["rtb-0123456789abcdef0", "rtb-0987654321fedcba0"]
-    org = {
-      organization_name = "example"
-      organization_unit = "infrastructure"
-      environment_type  = "prod"
-      environment_name  = "production"
-    }
+    ipv6_support         = false
+  }
+  ```
+
+  ### IPv6 VPC Route Table Updates
+  Add IPv6 routes to selected VPC route tables by setting `ipv6_support` to true and using an IPv6 destination CIDR.
+
+  ```hcl
+  inputs = {
+    transit_gateway_id   = dependency.tgw.outputs.transit_gateway_id
+    vpc_route_table_ids  = dependency.vpc.outputs.private_route_table_ids
+    tgw_destination_cidr = "2001:db8:1234::/48"
+    ipv6_support         = true
   }
   ```
 
 # How to get started quickly
 quickstart: |-
-  1. Ensure you have Terragrunt and Terraform installed.
-  2. Create a `terragrunt.hcl` file.
-  3. Reference this module in the `source` block.
-  4. Provide the required `transit_gateway_id` and `org` information in the `inputs` block.
-  5. Add your specific route or association configurations.
-  6. Run `terragrunt plan` to verify the changes and `terragrunt apply` to deploy.
+  1. Create and enter the Terragrunt deployment directory, for example `prod/us-east-1/network/transit-gateway-routes`.
+  2. Run `terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes` from that directory.
+  3. Edit the generated `inputs.yaml` with the route, association, propagation, and VPC route table settings for the deployment.
+  4. Confirm dependency paths in the generated `terragrunt.hcl` (`../vpc`, `../tgw`, and `../tgw-att`) match the environment layout.
+  5. Run `terragrunt plan` to review changes, then `terragrunt apply` to deploy.
 
 include:
   - "docs/targets.md"
