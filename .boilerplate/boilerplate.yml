@@ -48,6 +48,16 @@ variables:
     description: "Path to TGW Module, required if tgw_enabled is true"
     type: string
     default: "../tgw"
+  - name: tgw_att_enabled
+    order: 7
+    description: "Enable TGW Attachment Module dependency"
+    type: bool
+    default: true
+  - name: tgw_att_path
+    order: 8
+    description: "Path to TGW Attachment Module, required if tgw_att_enabled is true"
+    type: string
+    default: "../tgw-att"
 
 hooks:
   after:

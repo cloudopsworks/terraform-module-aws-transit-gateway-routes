@@ -23,7 +23,62 @@ locals {
 include "root" {
   path = find_in_parent_folders("{{ .RootFileName }}")
 }
-
+{{ if .vpc_enabled }}
+dependency "vpc" {
+  config_path = "{{ .vpc_path }}"
+  # Configure mock outputs for the `validate` command that are returned when there are no outputs available (e.g the
+  # module hasn't been applied yet.
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    vpc_name          = "sample-vpc"
+    vpc_id            = "vpc-12345678901234"
+    private_route_table_ids = [
+      "rtb-1234567890",
+      "rtb-1234567891",
+      "rtb-1234567892",
+    ]
+    public_route_table_ids = [
+      "rtb-1234567893",
+      "rtb-1234567894",
+    ]
+    intra_route_table_ids = [
+      "rtb-1234567895",
+      "rtb-1234567896",
+      "rtb-1234567897",
+    ]
+  }
+}
+{{ end }}
+{{ if .tgw_enabled }}
+dependency "tgw" {
+  config_path = "{{ .tgw_path }}"
+  # Configure mock outputs for the `validate` command that are returned when there are no outputs available (e.g the
+  # module hasn't been applied yet.
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    transit_gateway_arn            = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234",
+    transit_gateway_id             = "tgw-12345678901234"
+    transit_gateway_route_table_id = "tgw-rtb-12345678901234"
+  }
+}
+{{ end }}
+{{ if .tgw_att_enabled }}
+dependency "att" {
+  config_path = "{{ .tgw_att_path }}"
+  # Configure mock outputs for the `validate` command that are returned when there are no outputs available (e.g the
+  # module hasn't been applied yet.
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    transit_gateway_attachments = [
+      {
+        id                 = "tgw-attach-123456789012345"
+        transit_gateway_id = "tgw-1234567890123456"
+        vpc_id             = "vpc-123456789012345"
+      }
+    ]
+  }
+}
+{{ end }}
 terraform {
   source = "{{ .sourceUrl }}"
 }
@@ -34,12 +89,24 @@ inputs = {
   spoke_def  = local.spoke_vars.spoke
   {{- range .requiredVariables }}
   {{- if ne .Name "org" }}
+  {{- if and $.tgw_enabled (eq .Name "transit_gateway_id") }}
+  {{ .Name }} = dependency.tgw.outputs.{{ .Name }}
+  {{- else }}
   {{ .Name }} = local.local_vars.{{ .Name }}
+  {{- end }}
   {{- end }}
   {{- end }}
   {{- range .optionalVariables }}
   {{- if not (eq .Name "extra_tags" "is_hub" "spoke_def" "org") }}
+  {{- if and $.vpc_enabled (eq .Name "vpc_route_table_ids") }}
+  vpc_route_table_ids = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids)
+  {{- else if and $.tgw_enabled (eq .Name "transit_gateway_route_table_id") }}
+  {{ .Name }} = dependency.tgw.outputs.{{ .Name }}
+  {{- else if and $.tgw_att_enabled (eq .Name "transit_gateway_attachment_id") }}
+  {{ .Name }} = dependency.att.outputs.transit_gateway_attachments[0].id
+  {{- else}}
   {{ .Name }} = try(local.local_vars.{{ .Name }}, {{ .DefaultValue }})
+  {{- end }}
   {{- end }}
   {{- end }}
   extra_tags = local.tags
