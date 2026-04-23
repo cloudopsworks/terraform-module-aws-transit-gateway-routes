@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -7,76 +7,76 @@
 #     Distributed Under Apache v2.0 License
 #
 
-# vpc_route_table_ids: []   # (Optional) List of VPC Route Table identifiers to create routes to the Transit Gateway. Default: []
+# vpc_route_table_ids: []   # (Optional) List of VPC route table IDs where routes to the Transit Gateway will be created. Default: []
 variable "vpc_route_table_ids" {
-  description = "List of VPC Route Table identifiers to create routes to the Transit Gateway."
+  description = "List of VPC route table IDs where routes to the Transit Gateway will be created."
   type        = list(string)
   default     = []
 
 }
 
-# tgw_destination_cidr: ""   # (Optional) Destination CIDR block for the Transit Gateway route. Default: ""
+# tgw_destination_cidr: ""   # (Optional) Destination CIDR block for VPC route table routes. Use IPv4 CIDR when ipv6_support is false, or IPv6 CIDR when true. Default: ""
 variable "tgw_destination_cidr" {
-  description = "Destination CIDR block for the Transit Gateway route."
+  description = "Destination CIDR block for VPC route table routes. Use IPv4 CIDR when ipv6_support is false, or IPv6 CIDR when true."
   type        = string
   default     = ""
 }
 
-# ipv6_support: false   # (Optional) Enable IPv6 support for the Transit Gateway route. Default: false
+# ipv6_support: false   # (Optional) Create VPC route table routes with destination_ipv6_cidr_block instead of destination_cidr_block. Default: false
 variable "ipv6_support" {
-  description = "Enable IPv6 support for the Transit Gateway route."
+  description = "Create VPC route table routes with destination_ipv6_cidr_block instead of destination_cidr_block."
   type        = bool
   default     = false
 }
 
-# transit_gateway_id: "tgw-12345678"   # (Required) EC2 Transit Gateway identifier.
+# transit_gateway_id: "tgw-1234567890abcdef0"   # (Required) EC2 Transit Gateway ID used by VPC route table routes; usually sourced from the TGW dependency when enabled.
 variable "transit_gateway_id" {
-  description = "EC2 Transit Gateway identifier"
+  description = "EC2 Transit Gateway ID used by VPC route table routes."
   type        = string
 }
 
-# transit_gateway_route_table_id: ""   # (Optional) EC2 Transit Gateway Route Table identifier, defaults to blank, required if not provided through 'transit_gateway_routes'. Default: ""
+# transit_gateway_route_table_id: ""   # (Optional) EC2 Transit Gateway route table ID used for static routes, association, and propagation when not supplied per route. Default: ""
 variable "transit_gateway_route_table_id" {
-  description = "(optional) EC2 Transit Gateway Route Table identifier, defaults to blank, required if not provided through 'transit_gateway_routes'."
+  description = "EC2 Transit Gateway route table ID used for static routes, association, and propagation when not supplied per route."
   type        = string
   default     = ""
 }
 
-# transit_gateway_attachment_id: ""   # (Optional) EC2 Transit Gateway Attachment identifier, defaults to blank., required if not provided through 'transit_gateway_routes'. Default: ""
+# transit_gateway_attachment_id: ""   # (Optional) EC2 Transit Gateway attachment ID used for static routes, association, and propagation when not supplied per route. Default: ""
 variable "transit_gateway_attachment_id" {
-  description = "(optional) EC2 Transit Gateway Attachment identifier, defaults to blank., required if not provided through 'transit_gateway_routes'."
+  description = "EC2 Transit Gateway attachment ID used for static routes, association, and propagation when not supplied per route."
   type        = string
   default     = ""
 }
 
-# transit_gateway_routes: []   # (Optional) List of maps of Transit Gateway routes to create. Default: []
-#   - destination_cidr_block: "10.0.0.0/8"   # (Required) Destination CIDR block for the Transit Gateway route.
+# transit_gateway_routes: []   # (Optional) Static Transit Gateway routes to create. Default: []
+#   - destination_cidr_block: "10.0.0.0/8"   # (Required) Destination IPv4 or IPv6 CIDR block for the static Transit Gateway route.
 #     blackhole: false   # (Optional) Whether to create a blackhole route. Default: false
-#     transit_gateway_route_table_id: "tgw-rtb-12345678"   # (Optional) EC2 Transit Gateway Route Table identifier. Defaults to var.transit_gateway_route_table_id
-#     transit_gateway_attachment_id: "tgw-attach-12345678"   # (Optional) EC2 Transit Gateway Attachment identifier. Defaults to var.transit_gateway_attachment_id
+#     transit_gateway_route_table_id: "tgw-rtb-1234567890abcdef0"   # (Optional) Route table ID for this route. Defaults to transit_gateway_route_table_id.
+#     transit_gateway_attachment_id: "tgw-attach-1234567890abcdef0"   # (Optional) Attachment ID for this route when blackhole is false. Defaults to transit_gateway_attachment_id.
 variable "transit_gateway_routes" {
-  description = "List of maps of Transit Gateway routes to create."
+  description = "Static Transit Gateway routes to create."
   type        = any
   default     = []
 }
 
-# create_association: false   # (Optional) Create Transit Gateway Route Table Association. Default: false
+# create_association: false   # (Optional) Create a Transit Gateway route table association for transit_gateway_attachment_id. Default: false
 variable "create_association" {
-  description = "Create Transit Gateway Route Table Association."
+  description = "Create a Transit Gateway route table association for transit_gateway_attachment_id."
   type        = bool
   default     = false
 }
 
-# create_propagation: false   # (Optional) Create Transit Gateway Route Table Propagation. Default: false
+# create_propagation: false   # (Optional) Create a Transit Gateway route table propagation for transit_gateway_attachment_id. Default: false
 variable "create_propagation" {
-  description = "Create Transit Gateway Route Table Propagation."
+  description = "Create a Transit Gateway route table propagation for transit_gateway_attachment_id."
   type        = bool
   default     = false
 }
 
-# replace_existing: false   # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
+# replace_existing: false   # (Optional) Replace an existing Transit Gateway route table association when create_association is true. Default: false
 variable "replace_existing" {
-  description = "Replace existing Transit Gateway Route Table Association or Propagation."
+  description = "Replace an existing Transit Gateway route table association when create_association is true."
   type        = bool
   default     = false
 }

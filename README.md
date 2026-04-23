@@ -8,34 +8,27 @@
   -->
 [![README Header][readme_header_img]][readme_header_link]
 
-[![cloudopsworks][logo]](https://cloudops.works/)
+[![cloudopsworks][logo]](https://cloudopsworks.co/)
 
-# Terraform Transit Gateway Routes Configuration Module
+# Terraform AWS Transit Gateway Routes Module
+
+ [![Latest Release](https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-transit-gateway-routes.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/releases/latest) [![Last Updated](https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-transit-gateway-routes.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/commits)
 
 
-
-
-This Terraform module configures AWS Transit Gateway routes, associations, and propagations. 
-It allows for the creation of transit gateway routes based on provided CIDR blocks, and supports both IPv4 
-and IPv6 configurations. The module also handles the association and propagation of transit gateway route tables, 
-ensuring that the necessary routes are established for network traffic to flow through the transit gateway. 
-Additionally, it includes the ability to create network-related routes to the transit gateway within specified 
-VPC route tables. This module is designed to be flexible and supports various configurations through input variables.
+Terraform module for managing AWS Transit Gateway routing primitives. It creates static Transit Gateway routes,
+optional route table associations and propagations, and optional VPC route table entries that target a Transit
+Gateway. The module supports IPv4 and IPv6 destination CIDRs and can be wired directly or through Terragrunt
+scaffolded dependencies for VPC, Transit Gateway, and Transit Gateway attachment modules.
 
 
 ---
 
 This project is part of our comprehensive approach towards DevOps Acceleration. 
 [<img align="right" title="Share via Email" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/ios-mail.svg"/>][share_email]
-[<img align="right" title="Share on Google+" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-googleplus.svg" />][share_googleplus]
 [<img align="right" title="Share on Facebook" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-facebook.svg" />][share_facebook]
 [<img align="right" title="Share on Reddit" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-reddit.svg" />][share_reddit]
 [<img align="right" title="Share on LinkedIn" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-linkedin.svg" />][share_linkedin]
-[<img align="right" title="Share on Twitter" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
-
-
-[![Terraform Open Source Modules](https://docs.cloudops.works/images/terraform-open-source-modules.svg)][terraform_modules]
-
+[<img align="right" title="Share on X" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
 
 
 It's 100% Open Source and licensed under the [APACHE2](LICENSE).
@@ -55,10 +48,11 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 ## Introduction
 
-The AWS Transit Gateway Routes module is designed to simplify the management of routing within an AWS Transit Gateway environment. 
-It provides a structured way to define static routes, handle route table associations and propagations, and automate the 
-creation of routes in VPC route tables that point to the Transit Gateway. This ensures consistent and manageable network 
-connectivity across multiple VPCs and accounts.
+The AWS Transit Gateway Routes module centralizes the route-management tasks commonly required after provisioning
+a Transit Gateway and VPC attachments. Use it to add static TGW routes, associate an attachment to a TGW route
+table, enable route propagation, and publish routes into selected VPC route tables. This keeps hub-and-spoke
+routing deployments repeatable while allowing each deployment to override route tables, attachments, and CIDR
+destinations where needed.
 
 ## Usage
 
@@ -67,143 +61,217 @@ connectivity across multiple VPCs and accounts.
 Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/releases).
 
 
-To use this module in a Terragrunt configuration, you can include it in your `terragrunt.hcl` file. 
-The module requires several inputs to define the Transit Gateway and the routes to be created.
+Bootstrap deployments with Terragrunt's scaffold command. The scaffold reads `.boilerplate/boilerplate.yml` from
+this module and writes `terragrunt.hcl`, `inputs.yaml`, and `local-tags.json` into the current directory.
+
+```sh
+# 1. Create and enter the target deployment directory
+mkdir -p prod/us-east-1/network/transit-gateway-routes
+cd prod/us-east-1/network/transit-gateway-routes
+
+# 2. Scaffold the module (do NOT use --working-dir)
+terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
+
+# 3. Edit inputs.yaml with deployment-specific values
+#    (all keys and comments are pre-populated from .boilerplate/inputs.yaml)
+vi inputs.yaml
+
+# 4. Apply
+terragrunt apply
+```
+
+The generated `inputs.yaml` contains the module-specific settings operators edit per deployment:
+
+```yaml
+# Module configuration
+
+vpc_route_table_ids: [] # (Optional) List of VPC route table IDs where routes to the Transit Gateway will be created. Default: []
+tgw_destination_cidr: "" # (Optional) Destination CIDR block for VPC route table routes. Use IPv4 CIDR when ipv6_support is false, or IPv6 CIDR when true. Default: ""
+ipv6_support: false # (Optional) Create VPC route table routes with destination_ipv6_cidr_block instead of destination_cidr_block. Default: false
+transit_gateway_id: "tgw-1234567890abcdef0" # (Required) EC2 Transit Gateway ID used by VPC route table routes; usually sourced from the TGW dependency when enabled.
+transit_gateway_route_table_id: "" # (Optional) EC2 Transit Gateway route table ID used for static routes, association, and propagation when not supplied per route. Default: ""
+transit_gateway_attachment_id: "" # (Optional) EC2 Transit Gateway attachment ID used for static routes, association, and propagation when not supplied per route. Default: ""
+transit_gateway_routes: [] # (Optional) Static Transit Gateway routes to create. Default: []
+# - destination_cidr_block: "10.0.0.0/8" # (Required) Destination IPv4 or IPv6 CIDR block for the static Transit Gateway route.
+#   blackhole: false # (Optional) Create a blackhole route instead of targeting an attachment. Default: false
+#   transit_gateway_route_table_id: "tgw-rtb-1234567890abcdef0" # (Optional) Route table ID for this route. Defaults to transit_gateway_route_table_id.
+#   transit_gateway_attachment_id: "tgw-attach-1234567890abcdef0" # (Optional) Attachment ID for this route when blackhole is false. Defaults to transit_gateway_attachment_id.
+create_association: false # (Optional) Create a Transit Gateway route table association for transit_gateway_attachment_id. Default: false
+create_propagation: false # (Optional) Create a Transit Gateway route table propagation for transit_gateway_attachment_id. Default: false
+replace_existing: false # (Optional) Replace an existing Transit Gateway route table association when create_association is true. Default: false
+```
+
+With the default scaffold options, the generated `terragrunt.hcl` wires VPC, Transit Gateway, and attachment
+dependencies into module inputs while keeping deployment-specific overrides in `inputs.yaml`:
 
 ```hcl
+locals {
+  local_vars  = yamldecode(file("./inputs.yaml"))
+  spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+  region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+  env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+  global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
+
+  local_tags  = jsondecode(file("./local-tags.json"))
+  spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+  region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+  env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+  global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+  tags = merge(
+    local.global_tags,
+    local.env_tags,
+    local.region_tags,
+    local.spoke_tags,
+    local.local_tags
+  )
+}
+
+include "root" {
+  path = find_in_parent_folders("terragrunt.hcl")
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    vpc_name = "sample-vpc"
+    vpc_id   = "vpc-12345678901234"
+    private_route_table_ids = [
+      "rtb-1234567890",
+      "rtb-1234567891",
+      "rtb-1234567892",
+    ]
+    public_route_table_ids = [
+      "rtb-1234567893",
+      "rtb-1234567894",
+    ]
+    intra_route_table_ids = [
+      "rtb-1234567895",
+      "rtb-1234567896",
+      "rtb-1234567897",
+    ]
+  }
+}
+
+dependency "tgw" {
+  config_path = "../tgw"
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    transit_gateway_arn            = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234"
+    transit_gateway_id             = "tgw-12345678901234"
+    transit_gateway_route_table_id = "tgw-rtb-12345678901234"
+  }
+}
+
+dependency "att" {
+  config_path = "../tgw-att"
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    transit_gateway_attachments = [
+      {
+        id                 = "tgw-attach-123456789012345"
+        transit_gateway_id = "tgw-1234567890123456"
+        vpc_id             = "vpc-123456789012345"
+      }
+    ]
+  }
+}
+
 terraform {
-  source = "github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes.git?ref=v1.0.0"
+  source = "github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes"
 }
 
 inputs = {
-  is_hub                         = false             # (Optional) Establish this is a HUB or spoke configuration. Default: false
-  spoke_def                      = "001"             # (Optional) Spoke definition. Default: "001"
-  org                            = {                 # (Required) Organization information.
-    organization_name = "myorg"                      # (Required) Organization name.
-    organization_unit = "myunit"                     # (Required) Organization unit.
-    environment_type  = "dev"                        # (Required) Environment type (e.g., dev, prod).
-    environment_name  = "development"                # (Required) Environment name.
-  }
-  extra_tags                     = {}                # (Optional) Extra tags to add to resources. Default: {}
-  vpc_route_table_ids            = []                # (Optional) List of VPC Route Table identifiers to create routes to the Transit Gateway. Default: []
-  tgw_destination_cidr           = ""                # (Optional) Destination CIDR block for the Transit Gateway route. Default: ""
-  ipv6_support                   = false             # (Optional) Enable IPv6 support for the Transit Gateway route. Default: false
-  transit_gateway_id             = "tgw-12345678"    # (Required) EC2 Transit Gateway identifier.
-  transit_gateway_route_table_id = ""                # (Optional) EC2 Transit Gateway Route Table identifier. Default: ""
-  transit_gateway_attachment_id  = ""                # (Optional) EC2 Transit Gateway Attachment identifier. Default: ""
-  transit_gateway_routes         = [                 # (Optional) List of maps of Transit Gateway routes to create. Default: []
-    {
-      destination_cidr_block         = "10.0.0.0/8"    # (Required) Destination CIDR block for the Transit Gateway route.
-      blackhole                      = false           # (Optional) Whether to create a blackhole route. Default: false
-      transit_gateway_route_table_id = "tgw-rtb-12345678" # (Optional) EC2 Transit Gateway Route Table identifier.
-      transit_gateway_attachment_id  = "tgw-attach-12345678" # (Optional) EC2 Transit Gateway Attachment identifier.
-    }
-  ]
-  create_association             = false             # (Optional) Create Transit Gateway Route Table Association. Default: false
-  create_propagation             = false             # (Optional) Create Transit Gateway Route Table Propagation. Default: false
-  replace_existing               = false             # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
+  is_hub    = false
+  org       = local.env_vars.org
+  spoke_def = local.spoke_vars.spoke
+
+  transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+  vpc_route_table_ids            = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids)
+  tgw_destination_cidr           = try(local.local_vars.tgw_destination_cidr, "")
+  ipv6_support                   = try(local.local_vars.ipv6_support, false)
+  transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+  transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
+  transit_gateway_routes         = try(local.local_vars.transit_gateway_routes, [])
+  create_association             = try(local.local_vars.create_association, false)
+  create_propagation             = try(local.local_vars.create_propagation, false)
+  replace_existing               = try(local.local_vars.replace_existing, false)
+
+  extra_tags = local.tags
 }
-```
-
-### Full YAML Configuration Documentation
-Below is the complete documentation of the configuration variables in YAML format:
-
-```yaml
-is_hub: false   # (Optional) Establish this is a HUB or spoke configuration. Default: false
-spoke_def: "001"   # (Optional) Spoke definition. Default: "001"
-org:   # (Required) Organization information.
-  organization_name: "myorg"   # (Required) Organization name.
-  organization_unit: "myunit"   # (Required) Organization unit.
-  environment_type: "dev"      # (Required) Environment type (e.g., dev, prod).
-  environment_name: "development" # (Required) Environment name.
-extra_tags: {}   # (Optional) Extra tags to add to resources. Default: {}
-
-vpc_route_table_ids: []   # (Optional) List of VPC Route Table identifiers to create routes to the Transit Gateway. Default: []
-tgw_destination_cidr: ""   # (Optional) Destination CIDR block for the Transit Gateway route. Default: ""
-ipv6_support: false   # (Optional) Enable IPv6 support for the Transit Gateway route. Default: false
-transit_gateway_id: "tgw-12345678"   # (Required) EC2 Transit Gateway identifier.
-transit_gateway_route_table_id: ""   # (Optional) EC2 Transit Gateway Route Table identifier, defaults to blank, required if not provided through 'transit_gateway_routes'. Default: ""
-transit_gateway_attachment_id: ""   # (Optional) EC2 Transit Gateway Attachment identifier, defaults to blank., required if not provided through 'transit_gateway_routes'. Default: ""
-transit_gateway_routes: []   # (Optional) List of maps of Transit Gateway routes to create. Default: []
-  - destination_cidr_block: "10.0.0.0/8"   # (Required) Destination CIDR block for the Transit Gateway route.
-    blackhole: false   # (Optional) Whether to create a blackhole route. Default: false
-    transit_gateway_route_table_id: "tgw-rtb-12345678"   # (Optional) EC2 Transit Gateway Route Table identifier. Defaults to var.transit_gateway_route_table_id
-    transit_gateway_attachment_id: "tgw-attach-12345678"   # (Optional) EC2 Transit Gateway Attachment identifier. Defaults to var.transit_gateway_attachment_id
-create_association: false   # (Optional) Create Transit Gateway Route Table Association. Default: false
-create_propagation: false   # (Optional) Create Transit Gateway Route Table Propagation. Default: false
-replace_existing: false   # (Optional) Replace existing Transit Gateway Route Table Association or Propagation. Default: false
 ```
 
 ## Quick Start
 
-1. Ensure you have Terragrunt and Terraform installed.
-2. Create a `terragrunt.hcl` file.
-3. Reference this module in the `source` block.
-4. Provide the required `transit_gateway_id` and `org` information in the `inputs` block.
-5. Add your specific route or association configurations.
-6. Run `terragrunt plan` to verify the changes and `terragrunt apply` to deploy.
+1. Create and enter the Terragrunt deployment directory, for example `prod/us-east-1/network/transit-gateway-routes`.
+2. Run `terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes` from that directory.
+3. Edit the generated `inputs.yaml` with the route, association, propagation, and VPC route table settings for the deployment.
+4. Confirm dependency paths in the generated `terragrunt.hcl` (`../vpc`, `../tgw`, and `../tgw-att`) match the environment layout.
+5. Run `terragrunt plan` to review changes, then `terragrunt apply` to deploy.
 
 
 ## Examples
 
 ### Basic Association and Propagation
-This example demonstrates how to associate a TGW attachment with a route table and enable propagation.
+Associate a Transit Gateway attachment with a route table and enable propagation from that same attachment.
 
 ```hcl
 inputs = {
-  transit_gateway_id             = "tgw-0123456789abcdef0"
-  transit_gateway_route_table_id = "tgw-rtb-0123456789abcdef0"
-  transit_gateway_attachment_id  = "tgw-attach-0123456789abcdef0"
+  transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+  transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+  transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
   create_association             = true
   create_propagation             = true
-  org = {
-    organization_name = "example"
-    organization_unit = "infrastructure"
-    environment_type  = "prod"
-    environment_name  = "production"
-  }
 }
 ```
 
 ### Static Routes in Transit Gateway
-This example shows how to create multiple static routes in the Transit Gateway.
+Create explicit static routes in a Transit Gateway route table. Per-route route table and attachment values override
+the top-level defaults when supplied.
 
 ```hcl
 inputs = {
-  transit_gateway_id = "tgw-0123456789abcdef0"
+  transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
+  transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
+  transit_gateway_attachment_id  = dependency.att.outputs.transit_gateway_attachments[0].id
   transit_gateway_routes = [
     {
       destination_cidr_block = "10.1.0.0/16"
-      transit_gateway_attachment_id = "tgw-attach-11111111"
     },
     {
       destination_cidr_block = "10.2.0.0/16"
-      transit_gateway_attachment_id = "tgw-attach-22222222"
+      transit_gateway_attachment_id = "tgw-attach-22222222222222222"
+    },
+    {
+      destination_cidr_block = "10.99.0.0/16"
+      blackhole              = true
     }
   ]
-  org = {
-    organization_name = "example"
-    organization_unit = "infrastructure"
-    environment_type  = "prod"
-    environment_name  = "production"
-  }
 }
 ```
 
 ### VPC Route Table Updates
-This example shows how to add routes to VPC route tables that point to the Transit Gateway.
+Add IPv4 routes to selected VPC route tables that point to the Transit Gateway.
 
 ```hcl
 inputs = {
-  transit_gateway_id   = "tgw-0123456789abcdef0"
+  transit_gateway_id   = dependency.tgw.outputs.transit_gateway_id
+  vpc_route_table_ids  = dependency.vpc.outputs.private_route_table_ids
   tgw_destination_cidr = "10.0.0.0/8"
-  vpc_route_table_ids  = ["rtb-0123456789abcdef0", "rtb-0987654321fedcba0"]
-  org = {
-    organization_name = "example"
-    organization_unit = "infrastructure"
-    environment_type  = "prod"
-    environment_name  = "production"
-  }
+  ipv6_support         = false
+}
+```
+
+### IPv6 VPC Route Table Updates
+Add IPv6 routes to selected VPC route tables by setting `ipv6_support` to true and using an IPv6 destination CIDR.
+
+```hcl
+inputs = {
+  transit_gateway_id   = dependency.tgw.outputs.transit_gateway_id
+  vpc_route_table_ids  = dependency.vpc.outputs.private_route_table_ids
+  tgw_destination_cidr = "2001:db8:1234::/48"
+  ipv6_support         = true
 }
 ```
 
@@ -216,9 +284,7 @@ Available targets:
   help                                Help screen
   help/all                            Display help for all targets
   help/short                          This help short screen
-  init/aws                            Initialize the project for a specific cloud provider: AWS
-  init/azurerm                        Initialize the project for a specific cloud provider: Azure RM
-  init/gcp                            Initialize the project for a specific cloud provider: GCP
+  init/%                              Initialize the project for a specific cloud provider: %S
   lint                                Lint terraform/opentofu code
   tag                                 Tag the current version
 
@@ -228,13 +294,13 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | 6.4 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.4.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.42.0 |
 
 ## Modules
 
@@ -246,30 +312,30 @@ Available targets:
 
 | Name | Type |
 |------|------|
-| [aws_ec2_transit_gateway_route.this](https://registry.terraform.io/providers/hashicorp/aws/6.4/docs/resources/ec2_transit_gateway_route) | resource |
-| [aws_ec2_transit_gateway_route_table_association.this](https://registry.terraform.io/providers/hashicorp/aws/6.4/docs/resources/ec2_transit_gateway_route_table_association) | resource |
-| [aws_ec2_transit_gateway_route_table_propagation.this](https://registry.terraform.io/providers/hashicorp/aws/6.4/docs/resources/ec2_transit_gateway_route_table_propagation) | resource |
-| [aws_route.this](https://registry.terraform.io/providers/hashicorp/aws/6.4/docs/resources/route) | resource |
-| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/6.4/docs/data-sources/region) | data source |
+| [aws_ec2_transit_gateway_route.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ec2_transit_gateway_route) | resource |
+| [aws_ec2_transit_gateway_route_table_association.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ec2_transit_gateway_route_table_association) | resource |
+| [aws_ec2_transit_gateway_route_table_propagation.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ec2_transit_gateway_route_table_propagation) | resource |
+| [aws_route.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_create_association"></a> [create\_association](#input\_create\_association) | Create Transit Gateway Route Table Association. | `bool` | `false` | no |
-| <a name="input_create_propagation"></a> [create\_propagation](#input\_create\_propagation) | Create Transit Gateway Route Table Propagation. | `bool` | `false` | no |
-| <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to resources. | `map(string)` | `{}` | no |
-| <a name="input_ipv6_support"></a> [ipv6\_support](#input\_ipv6\_support) | Enable IPv6 support for the Transit Gateway route. | `bool` | `false` | no |
-| <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Establish this is a HUB or spoke configuration. | `bool` | `false` | no |
-| <a name="input_org"></a> [org](#input\_org) | Organization information. | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_replace_existing"></a> [replace\_existing](#input\_replace\_existing) | Replace existing Transit Gateway Route Table Association or Propagation. | `bool` | `false` | no |
-| <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke definition. | `string` | `"001"` | no |
-| <a name="input_tgw_destination_cidr"></a> [tgw\_destination\_cidr](#input\_tgw\_destination\_cidr) | Destination CIDR block for the Transit Gateway route. | `string` | `""` | no |
-| <a name="input_transit_gateway_attachment_id"></a> [transit\_gateway\_attachment\_id](#input\_transit\_gateway\_attachment\_id) | (optional) EC2 Transit Gateway Attachment identifier, defaults to blank., required if not provided through 'transit\_gateway\_routes'. | `string` | `""` | no |
-| <a name="input_transit_gateway_id"></a> [transit\_gateway\_id](#input\_transit\_gateway\_id) | EC2 Transit Gateway identifier | `string` | n/a | yes |
-| <a name="input_transit_gateway_route_table_id"></a> [transit\_gateway\_route\_table\_id](#input\_transit\_gateway\_route\_table\_id) | (optional) EC2 Transit Gateway Route Table identifier, defaults to blank, required if not provided through 'transit\_gateway\_routes'. | `string` | `""` | no |
-| <a name="input_transit_gateway_routes"></a> [transit\_gateway\_routes](#input\_transit\_gateway\_routes) | List of maps of Transit Gateway routes to create. | `any` | `[]` | no |
-| <a name="input_vpc_route_table_ids"></a> [vpc\_route\_table\_ids](#input\_vpc\_route\_table\_ids) | List of VPC Route Table identifiers to create routes to the Transit Gateway. | `list(string)` | `[]` | no |
+| <a name="input_create_association"></a> [create\_association](#input\_create\_association) | Create a Transit Gateway route table association for transit\_gateway\_attachment\_id. | `bool` | `false` | no |
+| <a name="input_create_propagation"></a> [create\_propagation](#input\_create\_propagation) | Create a Transit Gateway route table propagation for transit\_gateway\_attachment\_id. | `bool` | `false` | no |
+| <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
+| <a name="input_ipv6_support"></a> [ipv6\_support](#input\_ipv6\_support) | Create VPC route table routes with destination\_ipv6\_cidr\_block instead of destination\_cidr\_block. | `bool` | `false` | no |
+| <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
+| <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
+| <a name="input_replace_existing"></a> [replace\_existing](#input\_replace\_existing) | Replace an existing Transit Gateway route table association when create\_association is true. | `bool` | `false` | no |
+| <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
+| <a name="input_tgw_destination_cidr"></a> [tgw\_destination\_cidr](#input\_tgw\_destination\_cidr) | Destination CIDR block for VPC route table routes. Use IPv4 CIDR when ipv6\_support is false, or IPv6 CIDR when true. | `string` | `""` | no |
+| <a name="input_transit_gateway_attachment_id"></a> [transit\_gateway\_attachment\_id](#input\_transit\_gateway\_attachment\_id) | EC2 Transit Gateway attachment ID used for static routes, association, and propagation when not supplied per route. | `string` | `""` | no |
+| <a name="input_transit_gateway_id"></a> [transit\_gateway\_id](#input\_transit\_gateway\_id) | EC2 Transit Gateway ID used by VPC route table routes. | `string` | n/a | yes |
+| <a name="input_transit_gateway_route_table_id"></a> [transit\_gateway\_route\_table\_id](#input\_transit\_gateway\_route\_table\_id) | EC2 Transit Gateway route table ID used for static routes, association, and propagation when not supplied per route. | `string` | `""` | no |
+| <a name="input_transit_gateway_routes"></a> [transit\_gateway\_routes](#input\_transit\_gateway\_routes) | Static Transit Gateway routes to create. | `any` | `[]` | no |
+| <a name="input_vpc_route_table_ids"></a> [vpc\_route\_table\_ids](#input\_vpc\_route\_table\_ids) | List of VPC route table IDs where routes to the Transit Gateway will be created. | `list(string)` | `[]` | no |
 
 ## Outputs
 
@@ -283,10 +349,9 @@ No outputs.
 
 File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes/issues), send us an [email][email] or join our [Slack Community][slack].
 
-[![README Commercial Support][readme_commercial_support_img]][readme_commercial_support_link]
 
 ## DevOps Tools
-
+[]()
 ## Slack Community
 
 
@@ -364,32 +429,31 @@ This project is maintained by [Cloud Ops Works LLC][website].
 [![README Footer][readme_footer_img]][readme_footer_link]
 [![Beacon][beacon]][website]
 
-  [logo]: https://cloudops.works/logo-300x69.svg
-  [docs]: https://cowk.io/docs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=docs
-  [website]: https://cowk.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=website
-  [github]: https://cowk.io/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=github
-  [jobs]: https://cowk.io/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=jobs
-  [hire]: https://cowk.io/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=hire
-  [slack]: https://cowk.io/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=slack
-  [linkedin]: https://cowk.io/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=linkedin
-  [twitter]: https://cowk.io/twitter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=twitter
-  [testimonial]: https://cowk.io/leave-testimonial?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=testimonial
-  [office_hours]: https://cloudops.works/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=office_hours
-  [newsletter]: https://cowk.io/newsletter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=newsletter
-  [email]: https://cowk.io/email?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=email
-  [commercial_support]: https://cowk.io/commercial-support?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=commercial_support
-  [we_love_open_source]: https://cowk.io/we-love-open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=we_love_open_source
-  [terraform_modules]: https://cowk.io/terraform-modules?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=terraform_modules
-  [readme_header_img]: https://cloudops.works/readme/header/img
-  [readme_header_link]: https://cloudops.works/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_header_link
-  [readme_footer_img]: https://cloudops.works/readme/footer/img
-  [readme_footer_link]: https://cloudops.works/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_footer_link
-  [readme_commercial_support_img]: https://cloudops.works/readme/commercial-support/img
-  [readme_commercial_support_link]: https://cloudops.works/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_commercial_support_link
-  [share_twitter]: https://twitter.com/intent/tweet/?text=Terraform+Transit+Gateway+Routes+Configuration+Module&url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
-  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+Transit+Gateway+Routes+Configuration+Module&url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
+  [logo]: https://cloudopsworks.co/images/main-logo.png
+  [docs]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=docs
+  [website]: https://cloudopsworks.co?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=website
+  [github]: https://cloudopsworks.co/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=github
+  [jobs]: https://cloudopsworks.co/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=jobs
+  [hire]: https://cloudopsworks.co/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=hire
+  [slack]: https://cloudopsworks.co/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=slack
+  [linkedin]: https://cloudopsworks.co/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=linkedin
+  [x]: https://cloudopsworks.co/x?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=x
+  [testimonial]: https://cloudopsworks.co/case-studies?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=testimonial
+  [office_hours]: https://cloudopsworks.co/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=office_hours
+  [newsletter]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=newsletter
+  [email]: https://cloudopsworks.co/contact?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=email
+  [commercial_support]: https://cloudopsworks.co/services?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=commercial_support
+  [we_love_open_source]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=we_love_open_source
+  [terraform_modules]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=terraform_modules
+  [readme_header_img]: https://cloudopsworks.co/images/readme-header.png
+  [readme_header_link]: https://cloudopsworks.co/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_header_link
+  [readme_footer_img]: https://cloudopsworks.co/images/main-logo-footer.png
+  [readme_footer_link]: https://cloudopsworks.co/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_footer_link
+  [readme_commercial_support_img]: https://cloudopsworks.co/readme/commercial-support/img
+  [readme_commercial_support_link]: https://cloudopsworks.co/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-transit-gateway-routes&utm_content=readme_commercial_support_link
+  [share_twitter]: https://x.com/intent/tweet/?text=Terraform+AWS+Transit+Gateway+Routes+Module&url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
+  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+AWS+Transit+Gateway+Routes+Module&url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
   [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
   [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
-  [share_googleplus]: https://plus.google.com/share?url=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
-  [share_email]: mailto:?subject=Terraform+Transit+Gateway+Routes+Configuration+Module&body=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
-  [beacon]: https://ga-beacon.cloudops.works/G-7XWMFVFXZT/cloudopsworks/terraform-module-aws-transit-gateway-routes?pixel&cs=github&cm=readme&an=terraform-module-aws-transit-gateway-routes
+  [share_email]: mailto:?subject=Terraform+AWS+Transit+Gateway+Routes+Module&body=https://github.com/cloudopsworks/terraform-module-aws-transit-gateway-routes
+  [beacon]: https://ga-beacon.cloudospworks.co/G-QMZVYYN2VN/cloudopsworks/terraform-module-aws-transit-gateway-routes?pixel&cs=github&cm=readme&an=terraform-module-aws-transit-gateway-routes
