@@ -46,6 +46,10 @@ dependency "vpc" {
       "rtb-1234567896",
       "rtb-1234567897",
     ]
+    database_route_table_ids = [
+      "rtb-1234567898",
+      "rtb-1234567899",
+    ]
   }
 }
 {{ end }}
@@ -99,7 +103,7 @@ inputs = {
   {{- range .optionalVariables }}
   {{- if not (eq .Name "extra_tags" "is_hub" "spoke_def" "org") }}
   {{- if and $.vpc_enabled (eq .Name "vpc_route_table_ids") }}
-  vpc_route_table_ids = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids)
+  vpc_route_table_ids = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids, dependency.vpc.outputs.database_route_table_ids)
   {{- else if and $.tgw_enabled (eq .Name "transit_gateway_route_table_id") }}
   {{ .Name }} = dependency.tgw.outputs.{{ .Name }}
   {{- else if and $.tgw_att_enabled (eq .Name "transit_gateway_attachment_id") }}
