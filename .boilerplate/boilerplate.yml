@@ -36,14 +36,15 @@ variables:
     confirm: true
   - name: vpc_subnets
     order: 4
-    description: "VPC Subnets scope, required if vpc_enabled is true, options: private, intra, database, database,private"
+    description: "VPC Subnets scope, required if vpc_enabled is true, options: intra, private, database, both(database,private), none"
     type: enum
-    default: database,private
+    default: both
     options:
-      - private
       - intra
+      - private
       - database
-      - database,private
+      - both
+      - none
     confirm: true
   - name: tgw_enabled
     order: 5
