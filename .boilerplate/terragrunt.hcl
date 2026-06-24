@@ -103,12 +103,12 @@ inputs = {
   {{- range .optionalVariables }}
   {{- if not (eq .Name "extra_tags" "is_hub" "spoke_def" "org") }}
   {{- if and $.vpc_enabled (eq .Name "vpc_route_table_ids") }}
-  {{- if eq .vpc_subnets "both" }}
+  {{- if eq $.vpc_subnets "both" }}
   vpc_route_table_ids = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.database_route_table_ids)
-  {{- else if eq .vpc_subnets "none" }}
+  {{- else if eq $.vpc_subnets "none" }}
   vpc_route_table_ids = []
   {{- else }}
-  vpc_route_table_ids = dependency.vpc.outputs.{{ .vpc_subnets }}_route_table_ids
+  vpc_route_table_ids = dependency.vpc.outputs.{{ $.vpc_subnets }}_route_table_ids
   {{- end }}
   {{- else if and $.tgw_enabled (eq .Name "transit_gateway_route_table_id") }}
   {{ .Name }} = dependency.tgw.outputs.{{ .Name }}
