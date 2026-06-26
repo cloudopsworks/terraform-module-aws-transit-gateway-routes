@@ -58,14 +58,23 @@ variables:
     type: string
     default: "../tgw"
     confirm: true
-  - name: tgw_att_enabled
+  - name: tgw_route_table_source
     order: 7
+    description: "Select TGW dependency output to use for transit_gateway_route_table_id, required if tgw_enabled is true"
+    type: enum
+    default: route-table
+    options:
+      - route-table
+      - propagation-default
+    confirm: true
+  - name: tgw_att_enabled
+    order: 8
     description: "Enable TGW Attachment Module dependency"
     type: bool
     default: true
     confirm: true
   - name: tgw_att_path
-    order: 8
+    order: 9
     description: "Path to TGW Attachment Module, required if tgw_att_enabled is true"
     type: string
     default: "../tgw-att"

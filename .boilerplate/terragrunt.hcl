@@ -60,9 +60,10 @@ dependency "tgw" {
   # module hasn't been applied yet.
   mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
   mock_outputs = {
-    transit_gateway_arn            = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234",
-    transit_gateway_id             = "tgw-12345678901234"
-    transit_gateway_route_table_id = "tgw-rtb-12345678901234"
+    transit_gateway_arn                                = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234",
+    transit_gateway_id                                 = "tgw-12345678901234"
+    transit_gateway_route_table_id                     = "tgw-rtb-11111111111111111"
+    transit_gateway_propagation_default_route_table_id = "tgw-rtb-22222222222222222"
   }
 }
 {{ end }}
@@ -111,7 +112,11 @@ inputs = {
   vpc_route_table_ids = dependency.vpc.outputs.{{ $.vpc_subnets }}_route_table_ids
   {{- end }}
   {{- else if and $.tgw_enabled (eq .Name "transit_gateway_route_table_id") }}
-  {{ .Name }} = dependency.tgw.outputs.{{ .Name }}
+  {{- if eq $.tgw_route_table_source "propagation-default" }}
+  {{ .Name }} = dependency.tgw.outputs.transit_gateway_propagation_default_route_table_id
+  {{- else }}
+  {{ .Name }} = dependency.tgw.outputs.transit_gateway_route_table_id
+  {{- end }}
   {{- else if and $.tgw_att_enabled (eq .Name "transit_gateway_attachment_id") }}
   {{ .Name }} = dependency.att.outputs.transit_gateway_attachments[0].id
   {{- else}}
