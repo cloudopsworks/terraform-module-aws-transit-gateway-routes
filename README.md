@@ -101,6 +101,10 @@ create_propagation: false # (Optional) Create a Transit Gateway route table prop
 replace_existing: false # (Optional) Replace an existing Transit Gateway route table association when create_association is true. Default: false
 ```
 
+When scaffold prompts for the Transit Gateway route table source, keep the default `route-table` value to use the TGW
+module's route table output, or choose `propagation-default` to wire the propagation default route table output
+into `transit_gateway_route_table_id`.
+
 With the default scaffold options, the generated `terragrunt.hcl` wires VPC, Transit Gateway, and attachment
 dependencies into module inputs while keeping deployment-specific overrides in `inputs.yaml`:
 
@@ -151,6 +155,10 @@ dependency "vpc" {
       "rtb-1234567896",
       "rtb-1234567897",
     ]
+    database_route_table_ids = [
+      "rtb-1234567898",
+      "rtb-1234567899",
+    ]
   }
 }
 
@@ -158,9 +166,10 @@ dependency "tgw" {
   config_path = "../tgw"
   mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
   mock_outputs = {
-    transit_gateway_arn            = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234"
-    transit_gateway_id             = "tgw-12345678901234"
-    transit_gateway_route_table_id = "tgw-rtb-12345678901234"
+    transit_gateway_arn                                = "arn:aws:ec2:us-west-2:551110472991:transit-gateway/tgw-12345678901234"
+    transit_gateway_id                                 = "tgw-12345678901234"
+    transit_gateway_route_table_id                     = "tgw-rtb-11111111111111111"
+    transit_gateway_propagation_default_route_table_id = "tgw-rtb-22222222222222222"
   }
 }
 
@@ -188,7 +197,7 @@ inputs = {
   spoke_def = local.spoke_vars.spoke
 
   transit_gateway_id             = dependency.tgw.outputs.transit_gateway_id
-  vpc_route_table_ids            = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.public_route_table_ids, dependency.vpc.outputs.intra_route_table_ids)
+  vpc_route_table_ids            = concat(dependency.vpc.outputs.private_route_table_ids, dependency.vpc.outputs.database_route_table_ids)
   tgw_destination_cidr           = try(local.local_vars.tgw_destination_cidr, "")
   ipv6_support                   = try(local.local_vars.ipv6_support, false)
   transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_route_table_id
@@ -260,6 +269,17 @@ inputs = {
   vpc_route_table_ids  = dependency.vpc.outputs.private_route_table_ids
   tgw_destination_cidr = "10.0.0.0/8"
   ipv6_support         = false
+}
+```
+
+### Scaffolded Propagation Default Route Table
+When a deployment should use the Transit Gateway module's propagation default route table, choose
+`propagation-default` for the scaffold prompt `tgw_route_table_source`. The rendered input is wired from the TGW
+dependency output:
+
+```hcl
+inputs = {
+  transit_gateway_route_table_id = dependency.tgw.outputs.transit_gateway_propagation_default_route_table_id
 }
 ```
 
